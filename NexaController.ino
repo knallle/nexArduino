@@ -28,68 +28,40 @@ RTC_DS1307  rtc;            // En RTC-modul för klockan
 NexaCtrl nexaCtrl(TX_PIN, RX_PIN);
 
 const static unsigned long controller_id = 20677082;
+const uint8_t num_of_input_characters = 3;
 unsigned int device = 0;
-const uint8_t num_of_input_characters = 4;
-int incoming_num[num_of_input_characters] = {0};
-int incoming_msg = 0;
-int typing_delay_ms = 300;
+unsigned int dim_level = 0;
 
+String delimiter = ",";
+int incoming_num[num_of_input_characters] {0};
 
 void setup() {
     Serial.begin(9600);
-    
-    /**
-     * Initiera RTC-klockan. Om detta inte funkar skrivs feltexter ut. Kalibrera slutligen klockan.
-     */
-    
-    /**
-    if (! rtc.begin()) {
-        Serial.println("Couldn't find RTC");
-        while (1);
-    }
-    if (! rtc.isrunning()) {
-        Serial.println("RTC is NOT running!");
-        while (1);
-    }
-    rtc.adjust(DateTime(F(__DATE__), F(__TIME__))); // set RTC to date & time this sketch was compiled
-    */
-    /**
-     * Kan också ställas mha:
-     * DateTime::DateTime (uint16_t year, uint8_t month, uint8_t day, uint8_t hour, uint8_t min, uint8_t sec) {
-     * t.ex: rtc.adjust(DateTime(2016,8,8,13,43,30)); // verifierad som fungerande exempel
-     */
-    
     Serial.println("Setup complete!");
 }
 
 void loop() {
-//    DateTime now = rtc.now();
-//    Serial.print(now.hour(), DEC);
-//    Serial.print(":");
-//    Serial.print(now.minute(), DEC);
-//    Serial.print(":");
-//    Serial.println(now.second(), DEC);
-    
-    /*Dim light*/
-//    nexaCtrl.DeviceOff(controller_id, device);
-//    delay(1000);
-//    for (int i = 0; i<=15; i++) {
-//        nexaCtrl.DeviceDim(controller_id, device, i);  // 0 <= dimLevel <= 15
-//        Serial.print("Dim level:");
-//        Serial.println(i);
-//        delay(1000);
-//    }
     
     if (Serial.available() > 0) {
-        for(int i=0; i<num_of_input_characters; i++) {incoming_num[i] = 0;}
+        for(int i=0; i<num_of_input_characters; i++) {incoming_num[i] = 99;}
         uint8_t i = 0;
         while (Serial.available() > 0) {
-            // read incoming byte
-            incoming_msg = Serial.read();
+            // read incoming string, terminated by timeout or '\n'
+            String incoming_str = Serial.readStringUntil('\n');
             
-            incoming_num[i] = incoming_msg-48;
-            
-            delay(typing_delay_ms);
+            // parse string to control data
+            // incoming_str: "device,mode,dim_level" <-- ints separated by comma
+            String token;
+            int pos = incoming_str.indexOf(delimiter);
+            int j = 0;
+            while ( pos != -1 ) {
+                token = incoming_str.substring(0, pos);
+                incoming_num[j] = token.toInt();
+                incoming_str.remove( 0, pos+delimiter.length() );
+                pos = incoming_str.indexOf(delimiter);
+                j++;
+            }
+            incoming_num[j] = incoming_str.toInt();
             i++;
         }
         
@@ -101,18 +73,29 @@ void loop() {
 //        }
         
         device = incoming_num[0]-1;
+        dim_level = incoming_num[2];
         
-        switch (incoming_num[1]) {
-            case 0:
-                nexaCtrl.DeviceOff(controller_id, device);
-                break;
-            case 1:
-                nexaCtrl.DeviceOn(controller_id, device);
-                break;
-                
-            default:
-                break;
+        if (dim_level >= 0 && dim_level <= 15) { // A dim level was specified. Dim level in [0..15]
+            nexaCtrl.DeviceDim(controller_id, device, dim_level);
+        } else {
+            switch (incoming_num[1]) {  // Check specified mode for device
+                case 0:
+                    nexaCtrl.DeviceOff(controller_id, device);
+                    break;
+                case 1:
+                    nexaCtrl.DeviceOn(controller_id, device);
+                    break;
+                    
+                default:
+                    break;
+            }
         }
     }
 //
 }
+
+
+
+
+
+
