@@ -40,8 +40,7 @@
  * Peter Mead   09/2009
  */
 
-int rxPin = 12;
-
+int rxPin = 12
 
 void setup()
 {	pinMode(rxPin, INPUT);
